@@ -2,8 +2,19 @@
 import os
 HOME = os.getenv("HOME")
 JOBNAME = "regression"
-MODELNAME = "LorentzNet" # used in plots
+MODELNAME = "LorentzNetV2" # used in plots
 RUN_ID = None
+
+SLURM = {
+    "ACCOUNT": "rwth0934",
+    "PARTITION": "c23g",
+    "LOGDIR": os.path.join(HOME, "out", JOBNAME),
+    "MEMORY": "24G",
+    # Request the time you need for execution. The full format is D-HH:MM:SS
+    # You must at least specify minutes OR days and hours and may add or leave out any other parameters      
+    "TIME": "3:00:00",
+    "CONDA_ENV": "tf2"
+}
 
 def create_grid(name_format, values, **kwargs):
     from itertools import product
@@ -20,8 +31,7 @@ def create_grid(name_format, values, **kwargs):
     return configs 
 
 WORK_DIR = f"{HOME}/thesis"
-DATA_DIR = os.path.join(os.getenv("DATA_DIR"), "lhco")
-RAW_DATA_DIR = os.path.join(DATA_DIR, "raw")
+DATA_DIR = "/hpcwork/kd106458/data"
 OUTPUT_DIR = f"{WORK_DIR}/outputs/{JOBNAME}"
 RUN_ID_FILE = f"{WORK_DIR}/run_id.json"
 CHECKPOINT_DIR = "model-checkpoints"
@@ -32,11 +42,12 @@ MODEL = MODELNAME #used to load the model
 OPTIMIZER = "AdamW"
 WEIGHT_DECAY = 0.01
 N=30
+MERGE_JETS = True
 
 EXTRA_CONFIGS = []
 if(MODEL=="PELICAN"):
     EXTRA_CONFIGS.append("config_pelican.py")
-elif(MODEL=="LorentzNet"):
+elif(MODEL.startswith("LorentzNet")):
     EXTRA_CONFIGS.append("config_lorentznet.py")
 elif(MODEL=="ParticleNet"):
     EXTRA_CONFIGS.append("config_particlenet.py")
@@ -45,21 +56,16 @@ elif(MODEL=="ParticleNet"):
 CHANGE_SEED = True #for batch processing
 SEED = 4
 DATA_SEED = 2
-#BATCH_SIZE = 128 set by model specific config
+BATCH_SIZE = 256
 VERBOSITY=2
 PERFORM_TEST = True
 
 #Background sizes
-factor = 1
-BG_SLICE_TRAIN = 500_000
-BG_SLICE_VAL = 500_000
+N_TRAIN = 360000 
+VAL_SPLIT = 0.1
 
-N_TRAIN = 360_000
+N_TEST  = 200000
 
-VAL_RATIO = 0.2
-N_VAL = int(VAL_RATIO*N_TRAIN)
-
-N_TEST = 100_000
 # Define the bands
 '''
 SB_LEFT  = (2600, 3300)
@@ -72,8 +78,9 @@ MONITOR = 'val_loss'
 LR_PER_BATCH = True
 
 #Data files
-PREPROCESSED_TRAIN_DATA = f"new/N100-bg.h5"
-PREPROCESSED_TEST_DATA  = f"new/N100-bg-test.h5"
+directory="lhco/original"
+PREPROCESSED_DATA_TRAIN = f"{directory}/N100-bg.h5"
+#PREPROCESSED_DATA_TEST =  f"{directory}/sim-bg_unrotated_N100.h5"
 
 # ====== PLOTTING ======
 PLOT_TRAINING = True
@@ -84,7 +91,7 @@ PLOT_LR = True
 SAVE_KERAS_MODEL = True
 
 #for the manager script
-REPEATS = 2
+REPEATS = 3
 
 TAG = f"test1_shift"
 COMMENT = "Included shift"

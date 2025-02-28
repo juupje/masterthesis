@@ -16,6 +16,8 @@ PL_DROPOUT_OUTPUT = 0.1
 
 LR_USE_CHAIN=True
 LR_START = 0
+EPOCHS = 35
+LR_MAX = 1e-4
 if "MONITOR" not in globals():
     MONITOR = 'val_loss'
 LR_CHAIN = [{"type": "warmup", "duration": 3, "params": {"multiplier": 1.0, "warmup_epochs": 4, "final_lr": "$<|LR_MAX|>"}},

@@ -12,7 +12,7 @@ import jlogger as jl
 import utils
 logger = jl.JLogger()
 NPROC = 4
-DATA_DIR = os.getenv("DATA_DIR")
+DATA_DIR = "/scratch/work/geuskens/data"
 PLOTS_DIR = os.getenv("HOME") + "/Analysis/plots"
 files = {
     "LHCO_RnD": DATA_DIR + "/events_anomalydetection.h5", #reference

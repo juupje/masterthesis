@@ -16,7 +16,7 @@ import re
 import argparse
 import numpy as np
 from models import modelhandler
-import lr_scheduler as lrs
+import callbacks.lr_scheduler as lrs
 
 def setup_logging():
     # --------- LOGGING -------------- 
@@ -50,10 +50,9 @@ def get_data(test:bool=False):
     n_sn_t = int(config["N_DATA_SIGNAL_TRAIN"])
     assert n_sn_t>0, "Invalid signal ratio"
 
-    if not test:
-        n_sim_v = int(config["N_SIMULATED_VAL"])
-        n_bg_v = int(config["N_DATA_BACKGROUND_VAL"])
-        n_sn_v = int(config["N_DATA_SIGNAL_VAL"])
+    n_sim_v = int(config["N_SIMULATED_VAL"])
+    n_bg_v = int(config["N_DATA_BACKGROUND_VAL"])
+    n_sn_v = int(config["N_DATA_SIGNAL_VAL"])
 
     data_seed = config.get("DATA_SEED") or config["SEED"]
     print(f"\tSimulated\n\t\t: {n_sim_t:d}/{data['simulated']['Particles'].shape[0]}")
@@ -74,14 +73,15 @@ def get_data(test:bool=False):
     steps = int((n_sim_t+n_bg_t+n_sn_t)/batch_size)
     inputs = {"4mom": "Particles", "features":"Data", "mask": None}
 
-    print(f"{steps} training steps" + f" and {int((n_sim_v+n_bg_v+n_sn_v)/batch_size)} validation steps" if not test else "")
+    print(f"{steps} training steps and {int((n_sim_v+n_bg_v+n_sn_v)/batch_size)} validation steps")
     
-    if(not test):
-        train_generator = Monojets.IADDataLoader_MonoJets(sim_bg=data["simulated"], data_sn=data["data_signal"], data_bg=data["data_background"],batch_size=batch_size,
+    train_generator = Monojets.IADDataLoader_MonoJets(sim_bg=data["simulated"], data_sn=data["data_signal"], data_bg=data["data_background"],batch_size=batch_size,
                                         N_simulated=n_sim_t, N_background=n_bg_t, N_signal=n_sn_t, features=config["FEATURES"], particles=config["N"], seed=data_seed,
                                         noise_features=config.get("NOISE_FEATURES", None), noise_param=config.get("NOISE_PARAM", (0,1)),
                                         oversampling=config["OVERSAMPLING"], use_4mom=config["MODEL"]!="ParticleNet",
                                         sim_bg_slice=slice(n_sim_t), data_bg_slice=slice(n_sim_t,n_sim_t+n_bg_t), data_sn_slice=slice(n_sn_t), do_shuffle=not(test))
+    print(f"Train generator: {len(train_generator):d}")
+    if(not test):
         val_offset = n_sim_t+n_bg_t
         val_generator = Monojets.IADDataLoader_MonoJets(sim_bg=data["simulated"], data_sn=data["data_signal"],data_bg=data["data_background"], batch_size=batch_size,
                                             N_simulated=n_sim_v, N_background=n_bg_v, N_signal=n_sn_v, features=config["FEATURES"], particles=config["N"], seed=data_seed,
@@ -89,21 +89,13 @@ def get_data(test:bool=False):
                                             oversampling=config["OVERSAMPLING"], use_4mom=config["MODEL"]!="ParticleNet",
                                             sim_bg_slice=slice(val_offset,val_offset+n_sim_v), data_bg_slice=slice(val_offset+n_sim_v, val_offset+n_sim_v+n_bg_v), data_sn_slice=slice(n_sn_t, n_sn_t+n_sn_v),
                                             include_true_labels=True)
-        print(f"Train generator: {len(train_generator):d}")
         print(f"Val generator: {len(val_generator):d}")
-        #do some clean-up
-        for key in data: data[key].close()
+    #do some clean-up
+    for key in data: data[key].close()
+    if not test:
         return train_generator, val_generator
     else:
-        factor = 1/config["FACTOR"]
-        test_generator = Monojets.IADDataLoader_MonoJets(sim_bg=data["simulated"], data_sn=data["data_signal"], data_bg=data["data_background"],batch_size=batch_size,
-                                        N_simulated=int(factor*n_sim_t), N_background=int(factor*n_bg_t), N_signal=int(factor*n_sn_t), features=config["FEATURES"], particles=config["N"], seed=data_seed,
-                                        noise_features=config.get("NOISE_FEATURES", None), noise_param=config.get("NOISE_PARAM", (0,1)),
-                                        oversampling=False, use_4mom=config["MODEL"]!="ParticleNet",
-                                        sim_bg_slice=slice(int(n_sim_t*factor)), data_bg_slice=slice(int(factor*n_sim_t),int(factor*(n_sim_t+n_bg_t))), data_sn_slice=slice(int(factor*n_sn_t)), do_shuffle=not(test))
-        print(f"Test generator: {len(test_generator):d}")
-        for key in data: data[key].close()
-        return test_generator
+        return train_generator
 
 def get_test_data():
     data_bg = h5py.File(os.path.join(config["DATA_DIR"], config["PREPROCESSED_DATA_BG_TEST"]), mode='r')
@@ -143,7 +135,7 @@ def get_test_data():
     return data, labels, idx
 
 def get_callbacks():
-    from SaveModelCallback import SaveModelCallback
+    from callbacks.SaveModelCallback import SaveModelCallback
     checkpoint_name = "model-checkpoint_best.h5"
     config["CHECKPOINT_DIR"] = os.path.join(outdir, config["CHECKPOINT_DIR"])
     if not os.path.isdir(config["CHECKPOINT_DIR"]):
@@ -161,7 +153,7 @@ def get_callbacks():
     else:
         callbacks.append(tf.keras.callbacks.ReduceLROnPlateau(monitor=config["MONITOR"], factor=0.1, patience=config["LR_PATIENCE"]))
     if(config["ES_PATIENCE"] is not None):
-        from earlystopping import EarlyStopping
+        from callbacks.earlystopping import EarlyStopping
         callbacks.append(EarlyStopping(min_epoch=config["ES_MIN_EPOCHS"], min_delta=0.0001, monitor=config["MONITOR"], patience=config["ES_PATIENCE"]))
     
     if(config["CHECKPOINT_FREQ"] is not None):
@@ -276,40 +268,39 @@ if __name__ == "__main__":
     predictions = {}
     if(config["PERFORM_TEST"]):
         best_model_file = os.path.join(outdir, "model-checkpoints","model-checkpoint_best.h5")
-        best_model = modelhandler.load_model(best_model_file, config["MODEL"]) if os.path.isfile(best_model_file) else None
+        best_model = None#modelhandler.load_model(best_model_file, config["MODEL"]) if os.path.isfile(best_model_file) else None
         
-        test_generator = get_data(test=True)
-        iad_labels = test_generator.labels
-        true_labels = test_generator.true_labels[:,1]
-        is_cr = iad_labels[:,0]==1
-        print(f"CR size: {np.sum(is_cr):d}")
-        print(f"SR size: {np.sum(~is_cr):d}")
-        test_data = [test_generator.data[s] for s in test_generator.input_order]
-        s_vs_b_data, s_vs_b_labels, s_vs_b_idx = get_test_data()
-        print("s_vs_b data:",s_vs_b_data[0].shape)
-        print("test data:",test_data[0].shape)
-        for model, name, do_cr_sr in zip([final_model, best_model], ["final", f"best ({config['MONITOR']})"], [True, False]):
+        train_generator = get_data(test=True)
+        data, labels, idx = get_test_data()
+        print(data[0].shape)
+        for model, name, do_cr_vs_sr in zip([final_model, best_model], ["final", f"best ({config['MONITOR']})"], [True, False]):
             if(model is None): continue #to catch non-existent best model
             path = os.path.join(outdir, f"pred_{name.split(' ')[0]}.h5")
             file = h5py.File(path, 'w')
             
-            pred = model.predict(s_vs_b_data, batch_size=config["BATCH_SIZE"], verbose=config["VERBOSITY"])
-            one_hot = np.stack((1-s_vs_b_labels, s_vs_b_labels), axis=1)
+            pred = model.predict(data, batch_size=config["BATCH_SIZE"], verbose=config["VERBOSITY"])
+            one_hot = np.stack((1-labels, labels), axis=1)
             print("Test loss:", np.mean(tf.keras.metrics.categorical_crossentropy(one_hot, pred)))
             group = file.create_group("s_vs_b")
             group.create_dataset("pred", data=pred)
-            group.create_dataset("label", data=s_vs_b_labels)
-            group.create_dataset("idx", data=s_vs_b_idx)
+            group.create_dataset("label", data=labels)
+            group.create_dataset("idx", data=idx)
 
-            if(do_cr_sr):
-                pred = model.predict(test_data, batch_size=config["BATCH_SIZE"], verbose=config["VERBOSITY"])
+            if(do_cr_vs_sr):
+                iad_labels = train_generator.labels
+                true_labels = train_generator.true_labels[:,1]
+                is_cr = iad_labels[:,0]==1
+                print(f"CR size: {np.sum(is_cr):d}")
+                print(f"SR size: {np.sum(~is_cr):d}")
+                data_test = [train_generator.data[s] for s in train_generator.input_order]
+                pred = model.predict(data_test, batch_size=config["BATCH_SIZE"], verbose=config["VERBOSITY"])
                 group_cr = file.create_group("cr")
                 group_cr.create_dataset("pred", data=pred[is_cr])
                 group_cr.create_dataset("label", data=true_labels[is_cr])
                 group_sr = file.create_group("sr")
                 group_sr.create_dataset("pred", data=pred[~is_cr])
                 group_sr.create_dataset("label", data=true_labels[~is_cr])
-            file.close()
+                file.close()
             predictions[name] = path
     toc3 = time()
 

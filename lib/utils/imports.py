@@ -1,7 +1,7 @@
-import importlib
-
+import importlib.util as imp_util
+import importlib.machinery as imp_mach
 def import_mod(name:str, path:str):
-    spec = importlib.util.spec_from_loader(name, importlib.machinery.SourceFileLoader(name, path))
-    module = importlib.util.module_from_spec(spec)
+    spec = imp_util.spec_from_loader(name, imp_mach.SourceFileLoader(name, path))
+    module = imp_util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

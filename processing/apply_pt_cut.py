@@ -2,7 +2,7 @@ import h5py
 import numpy as np
 from utils.calc import create_chunks
 #input files
-DATA_DIR = os.path.join(os.getenv("/scratch/work/geuskens/data"),"/lhco/new/")
+DATA_DIR = "/scratch/work/geuskens/data/lhco/new/"
 inputs = [DATA_DIR+"pt500/combined/N100-bg.h5", DATA_DIR+"pt500/combined/N100-bg2.h5", DATA_DIR+"pt500/combined/N100-bg3.h5"]
 output = DATA_DIR+"pt500/N100-bg_fatjet-cut.h5"
 cut = 850

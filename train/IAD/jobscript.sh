@@ -1,15 +1,15 @@
 #!/bin/zsh
 #SBATCH --job-name=IAD
-#SBATCH --account=
+#SBATCH --account=rwth0934
 ### Output path for stdout and stderr
 ### %J is the job ID, %I is the array ID
-#SBATCH --output output_%J.log
-#SBATCH --error error_%J.log
+#SBATCH --output /home/kd106458/out/kerasv3/output_%J.log
+#SBATCH --error /home/kd106458/out/kerasv3/error_%J.log
 
 ### Request the time you need for execution. The full format is D-HH:MM:SS
 ### You must at least specify minutes OR days and hours and may add or
 ### leave out any other parameters
-#SBATCH --time=250
+#SBATCH --time=300
 
 ### Request the amount of memory you need for your job.
 ### You can specify this in either MB (1024M) or GB (4G).
@@ -18,6 +18,9 @@
 ### Request a host with a Volta GPU
 ### If you need two GPUs, change the number accordingly
 #SBATCH --gres=gpu:1
+
+#SBATCH --mail-type=END,FAIL
+#SBATCH --mail-user=joep.geuskens@rwth-aachen.de
 
 ### if needed: switch to your working directory (where you saved your program)
 #cd $HOME/subfolder/
@@ -34,7 +37,7 @@ cd $WORKDIR
 #module load python
 #module load cuda/11.0
 #module load cudnn/8.0.5
-conda activate tf
+conda activate tf2
 
 ### Make sure you have 'tensorflow-gpu' installed, because using
 ### 'tensorflow' will lead to your program not using the requested

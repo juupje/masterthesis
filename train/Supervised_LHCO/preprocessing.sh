@@ -1,0 +1,2 @@
+#python3 preprocessing.py -N 30 -n 8 --events 612000 --mjj 3300:3700 $DATA_DIR/lhco/raw/events_DelphesPythia_v2_inneronly.h5 $DATA_DIR/lhco/original/Supervised-N30-bg.h5 --split 136000:train 136000:val " -1:test"
+python3 preprocessing.py -N 30 -n 8 --events 100000 --mjj 3300:3700 $DATA_DIR/lhco/raw/events_anomalydetection_Z_XY_qqq.h5 $DATA_DIR/lhco/original/Supervised-N30-sn-qqq.h5 --split 27500:train 27500:val 20000:test

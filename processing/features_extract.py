@@ -10,7 +10,7 @@ import tables as pt
 import pyjettiness as jn
 
 NPROC = 6
-DATA_DIR = os.getenv("DATA_DIR")
+DATA_DIR = "/scratch/work/geuskens/data"
 signal=True
 files = {
     "LHCO_RnD": DATA_DIR + "/events_anomalydetection_v2.h5", #reference

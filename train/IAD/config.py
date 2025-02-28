@@ -5,6 +5,17 @@ JOBNAME = "IAD3_cathode_LN"
 MODELNAME = "LorentzNet" # used in plots
 RUN_ID = None
 
+SLURM = {
+    "ACCOUNT": "rwth0934",
+    "PARTITION": "c23g",
+    "LOGDIR": os.path.join(HOME, "out", JOBNAME),
+    "MEMORY": "10G",
+    # Request the time you need for execution. The full format is D-HH:MM:SS
+    # You must at least specify minutes OR days and hours and may add or leave out any other parameters      
+    "TIME": "300",
+    "CONDA_ENV": "tf2"
+}
+
 def create_grid(name_format, values, **kwargs):
     from itertools import product
     names = list(values.keys())
@@ -20,8 +31,8 @@ def create_grid(name_format, values, **kwargs):
     return configs 
 
 WORK_DIR = f"{HOME}/thesis"
-DATA_DIR = os.path.join(os.getenv("DATA_DIR"), "lhco")
-RAW_DATA_DIR = os.path.join(DATA_DIR, "raw")
+#DATA_DIR = os.path.join(os.getenv("DATA_DIR"), "lhco")
+DATA_DIR = "/hpcwork/rwth0934/LHCO_dataset/processed_jg/recreated"
 OUTPUT_DIR = f"{WORK_DIR}/outputs/{JOBNAME}"
 RUN_ID_FILE = f"{WORK_DIR}/run_id.json"
 CHECKPOINT_DIR = "model-checkpoints"
@@ -33,11 +44,12 @@ OPTIMIZER = "AdamW"
 WEIGHT_DECAY = 0.01
 EPOCHS = 35
 N=30
+EXTRA_DECODER_INPUTS = None #["N_PARTICLES"]
 
 EXTRA_CONFIGS = []
 if(MODEL=="PELICAN"):
     EXTRA_CONFIGS.append("config_pelican.py")
-elif(MODEL=="LorentzNet"):
+elif(MODEL=="LorentzNet" or MODEL=="LorentzNetV2"):
     EXTRA_CONFIGS.append("config_lorentznet.py")
 elif(MODEL=="ParticleNet"):
     EXTRA_CONFIGS.append("config_particlenet.py")
@@ -46,9 +58,11 @@ elif(MODEL=="ParticleNet"):
 CHANGE_SEED = False #for batch processing
 SEED = 65
 DATA_SEED = 4
-# BATCH_SIZE = 500 set by model config
+BATCH_SIZE = 512
+UPDATE_STEPS = 1
 VERBOSITY = 2
 PERFORM_TEST = True
+TEST_SR_VS_BG = False
 
 #Background sizes
 FACTOR = 1
@@ -64,7 +78,7 @@ N_DATA_SIGNAL_VAL = int(N_DATA_SIGNAL_TRAIN*VAL_RATIO) #taken from data-sn
 N_SIMULATED_VAL = N_DATA_BACKGROUND_VAL+N_DATA_SIGNAL_VAL # taken from sim-bg
 
 N_TEST_BACKGROUND  = 200_000 # taken from sim-bg
-N_TEST_SIGNAL = 200_000 # taken from data-sn
+N_TEST_SIGNAL = 22_000 # taken from data-sn
 
 OVERSAMPLING =  'repeat_strict'
 
@@ -82,9 +96,10 @@ MONITOR = "val_loss"
 LR_PER_BATCH = True
 
 #Data files
-PREPROCESSED_DATA_BG_SIM  = f"new/N$<|N|>-sim-bg-big.h5" #we use 'big' and 'small' because they're smaller datasets
-PREPROCESSED_DATA_BG_DATA = f"new/N$<|N|>-data-bg.h5"
-PREPROCESSED_DATA_SN_DATA = f"new/N$<|N|>-data-sn-small.h5"
+PREPROCESSED_DATA_BG_SIM  = "N100-sim-bg-SR_unrotated.h5"
+PREPROCESSED_DATA_BG_DATA = "N100-data-bg-SR_unrotated.h5"
+PREPROCESSED_DATA_SN_DATA = "N100-data-sn-SR_unrotated.h5"
+
 REUSE_BACKGROUND = False
 
 # ====== PLOTTING ======
@@ -100,13 +115,13 @@ SAVE_KERAS_MODEL = True
 #for the manager script
 REPEATS = 5
 
-TAG = "base_case"
-COMMENT = 'Replica of 188; just to be sure :)'
+TAG = "ES_val_test"
+COMMENT = 'Testing the result with early stopping on validiation loss'
 #This will overwrite the settings above if a grid is used\
 #GRID = create_grid(lambda DATA_SEED: f"{DATA_SEED=:d}", {"DATA_SEED": [0,1,2,3,4]})
 #GRID = create_grid("{MODEL:s}".format, {"MODEL": ["PELICAN", "LorentzNet", "ParticleNet"]},
 #                    MODELNAME = "{MODEL:s}".format,
 #                    EXTRA_CONFIGS = lambda **d: f"config_{d['MODEL'].lower():s}.py")
-GRID = create_grid(lambda N_DATA_SIGNAL_TRAIN: f"S={N_DATA_SIGNAL_TRAIN:d}", {"N_DATA_SIGNAL_TRAIN": [150*FACTOR, 400*FACTOR]},
-                   N_DATA_SIGNAL_VAL = lambda **d: int(d["N_DATA_SIGNAL_TRAIN"]*VAL_RATIO),
-                   N_SIMULATED_VAL = lambda **d: int(N_DATA_BACKGROUND_VAL+d["N_DATA_SIGNAL_TRAIN"]*VAL_RATIO))
+#GRID = create_grid(lambda N_DATA_SIGNAL_TRAIN: f"S={N_DATA_SIGNAL_TRAIN:d}", {"N_DATA_SIGNAL_TRAIN": [x*FACTOR for x in [200, 300, 395, 600,800,1000, 1500,2000]]},
+#                   N_DATA_SIGNAL_VAL = lambda **d: int(d["N_DATA_SIGNAL_TRAIN"]*VAL_RATIO),
+#                   N_SIMULATED_VAL = lambda **d: int(N_DATA_BACKGROUND_VAL+d["N_DATA_SIGNAL_TRAIN"]*VAL_RATIO))

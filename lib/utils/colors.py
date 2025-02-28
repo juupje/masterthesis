@@ -1,9 +1,28 @@
 import os, json
 
+path = os.path.join(os.path.dirname(__file__),"colors.json")
+class Colors:
+    def __init__(self, which="big"):
+        import json
+        with open(path, 'r') as f:
+            doc = json.load(f)
+            if(which not in doc):
+                raise ValueError(f"Unknown key: '{which}'")
+            self.dict = doc[which]
+            self.colors = [value for _, value in doc[which].items()]
+
+    def __getitem__(self, idx):
+        if(type(idx) is int):
+            return self.colors[idx]
+        elif(type(idx) is str):
+            return self.dict[idx]
+        else:
+            raise ValueError("Type of `idx` should be int or str, got " + str(type(idx)))
+    
+
 class ColorIter:
     def __init__(self, which="big"):
         import json
-        path = os.path.join(os.path.dirname(__file__),"colors.json")
         with open(path, 'r') as f:
             doc = json.load(f)
             if(which not in doc):

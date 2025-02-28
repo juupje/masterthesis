@@ -1,4 +1,9 @@
 #!/usr/env/python3
+"""
+DEPRICATED! THIS IS ONLY HERE FOR BACKWARD COMPATIBILITY FOR OLD RUNS
+FOR NEW RUNS, USE `steganologger` https://github.com/juupje/steganologger
+"""
+
 import sqlite3 as sql
 import os,sys
 import argparse
@@ -57,7 +62,3 @@ if __name__=="__main__":
         print(res.fetchall())
         for line in res:
             print(line)
-#rename_query = "UPDATE runs SET scriptpath=:new WHERE scriptpath LIKE :old"
-#res = cursor.execute(rename_query, dict(new="/net/home/lxtsfs1/tpe/geuskens/Analysis/train/particlenet", old="%/train"))
-#con.commit()
-#print(res)

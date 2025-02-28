@@ -5,9 +5,37 @@ import numpy as np
 from sklearn.metrics import roc_curve, roc_auc_score, log_loss
 import steganologger, utils
 
-def plot(outdir:str, logger, training_data_file:str=None, model_name:str="Model", prediction_files:dict=None,config:dict=None,
+upload_failed = False
+od_handler = None
+def save_figure(fig, path:str, log_info:dict=None, upload_name:str|None=None, upload_path:str|None=None):
+    global upload_failed, od_handler
+    store_format = os.path.splitext(path)[1]
+    fig.savefig(path, dpi=250)
+    if(store_format=='pgf'):
+        fig.savefig(path.replace(".pgf", ".png"), dpi=250)
+    if log_info is not None:
+        steganologger.encode(path, data=log_info, overwrite=True)
+    if(upload_name is not None and not upload_fail):
+        if od_handler is None:
+            from onedrive import onedrive
+            od_handler = onedrive.OneDriveHandler()
+        #resp = od_handler.upload(path, f"R{config['RUN_ID']}_{config['TAG']}_{config['NAME']}-{name}-ens-fold{fold}.{store_format}", to_path=f"Documenten/thesis/plots/{config['JOBNAME']}")
+        resp = od_handler.upload(path, upload_name, to_path=upload_path)
+        upload_fail = resp.status_code//100!=2
+
+def plot(outdir:str, training_data_file:str=None, model_name:str="Model", prediction_files:dict=None,config:dict=None,
          extra_info:dict=None, plot_lr:bool=False, plot_score_hist:bool=False, plot_spb:bool=False, store_format:str='png'):
-    assert store_format in ["png", "pdf", "svg"], "Invalid file format"
+    assert store_format in ["png", "pdf", "svg", "pgf"], "Invalid file format"
+    if(store_format == "pgf"):
+        import matplotlib
+        matplotlib.use("pgf")
+        matplotlib.rcParams.update({
+            "pgf.texsystem": "pdflatex",
+            'font.family': 'serif',
+            'font.size' : 11,
+            'text.usetex': True,
+            'pgf.rcfonts': False,
+        })
     if training_data_file is not None:
         if not os.path.exists(training_data_file):
             print("Training file doesn't exist. Skipping...")
@@ -55,13 +83,10 @@ def plot(outdir:str, logger, training_data_file:str=None, model_name:str="Model"
                 val["axis"].set_title(val["name"])
                 print(val["name"], file[key][3])
 
-            fig.tight_layout()
             fig.suptitle(f"Training of {model_name}")
+            fig.tight_layout()
             trainplot = os.path.join(outdir,f"training.{store_format}")
-            print("Saving plot: " + trainplot)
-            logger.log_figure(fig, trainplot, dpi=250)
-            if(config is not None):
-                steganologger.encode(trainplot, dict(config=config, extra_info=extra_info), overwrite=True)
+            save_figure(fig, trainplot, log_info=dict(config=config, extra_info=extra_info))
 
             # ============ PLOT LEARNING RATE SCHEDULE ============ #
             if(plot_lr):
@@ -70,32 +95,35 @@ def plot(outdir:str, logger, training_data_file:str=None, model_name:str="Model"
                 ax.plot(np.arange(len(lr))+1, lr, label='lr')
                 lr_batch = np.array(file["learning_rate"])
                 lr_batch = lr_batch.flatten()
-                ax.plot(np.linspace(0, len(lr)+1, lr_batch.shape[0], endpoint=False), lr_batch, label='per batch')
+                ax.plot(np.linspace(0, len(lr), lr_batch.shape[0], endpoint=False), lr_batch, label='per batch')
                 ax.set_xlabel("epoch")
                 ax.set_ylabel("learning rate")
                 ax.set_title(f"Learning rate of {model_name:s}")
                 ax.grid()
                 fig.legend()
                 lr_file = os.path.join(outdir, f"learning_rate.{store_format}")
-                logger.log_figure(fig, lr_file, data_file=training_data_file, dpi=250)
+                save_figure(fig, lr_file)
 
             # ============ PLOT SIGNAL PER BATCH DISTRIBUTION ============ #
             if(plot_spb):
-                import mpld3
-                from mpld3 import plugins
-                fig, ax = plt.subplots()
-                spb_dist = np.array(file["n_signal_per_batch"])
-                containers, labels = [], []
-                coloriter = utils.colors.ColorIter()
-                x = np.r_[0,0.5+np.arange(spb_dist.shape[1])]
-                for idx in range(spb_dist.shape[0]):
-                    labels.append(f"Epoch{idx:d}")
-                    containers.append(ax.step(x, np.r_[spb_dist[idx][0],spb_dist[idx]], color=next(coloriter), label=f"Epoch {idx}"))
-                ax.set_xlim(0, np.where(np.sum(spb_dist,axis=0)==0)[0][0])
-                interactive_legend = plugins.InteractiveLegendPlugin(containers, labels, start_visible=False)
-                plugins.connect(fig, interactive_legend)
-                spb_file = os.path.join(outdir, f"spb_hist.html")
-                mpld3.save_html(fig, spb_file)
+                try:
+                    import mpld3
+                    from mpld3 import plugins
+                    fig, ax = plt.subplots()
+                    spb_dist = np.array(file["n_signal_per_batch"])
+                    containers, labels = [], []
+                    coloriter = utils.colors.ColorIter()
+                    x = np.r_[0,0.5+np.arange(spb_dist.shape[1])]
+                    for idx in range(spb_dist.shape[0]):
+                        labels.append(f"Epoch{idx:d}")
+                        containers.append(ax.step(x, np.r_[spb_dist[idx][0],spb_dist[idx]], color=next(coloriter), label=f"Epoch {idx}"))
+                    ax.set_xlim(0, np.where(np.sum(spb_dist,axis=0)==0)[0][0])
+                    interactive_legend = plugins.InteractiveLegendPlugin(containers, labels, start_visible=False)
+                    plugins.connect(fig, interactive_legend)
+                    spb_file = os.path.join(outdir, f"spb_hist.html")
+                    mpld3.save_html(fig, spb_file)
+                except ImportError:
+                    print("mpld3 not installed. Skipping SPB plot")
             file.close()
 
     # ============ PLOT ROC CURVES ============ 
@@ -122,35 +150,42 @@ def plot(outdir:str, logger, training_data_file:str=None, model_name:str="Model"
         old = np.seterr(divide='ignore')
         #plot the ROC curve
         fig, (ax,ax2) = plt.subplots(1,2, figsize=(10,6))
-        results = {"s_vs_b":{}, "sr_vs_sb": {}}
+        coloriter = utils.colors.ColorIter()
+        results = {"s_vs_b":{}, "sr_vs_sb": {}, "test": {}}
         for i,key in enumerate(prediction_files):
             file = h5py.File(prediction_files[key], 'r')
-            
-            #signal vs. background
-            pred = np.array(file["s_vs_b/pred"])
-            y_true = np.array(file["s_vs_b/label"])
-            y_pred = pred[:,1]
-            is_nan = np.isnan(y_pred)
-            y_pred = y_pred[~is_nan]
-            y_true = y_true[~is_nan]
-            print(f"Predicted {np.sum(is_nan)} nan's")
-            tpr, inv_fpr, thres, result = get_roc(y_true, y_pred)
-            results["s_vs_b"][key] = result
-            color = next(ax._get_lines.prop_cycler)["color"]
-            ax.plot(tpr, inv_fpr, color=color,label=key)
-            ax.text(0.7,0.8-i*0.05, f"AUROC={result['auroc']:.4f}", color=color, transform=ax.transAxes)
+            if("s_vs_b" in file):
+                #signal vs. background
+                pred = np.array(file["s_vs_b/pred"])
+                y_true = np.array(file["s_vs_b/label"])
+                y_pred = pred[:,1]
+                is_nan = np.isnan(y_pred)
+                y_pred = y_pred[~is_nan]
+                y_true = y_true[~is_nan]
+                print(f"Predicted {np.sum(is_nan)} nan's")
+                tpr, inv_fpr, thres, result = get_roc(y_true, y_pred)
+                results["s_vs_b"][key] = result
+                color = next(coloriter)
+                ax.plot(*utils.misc.thin_plot(tpr, inv_fpr, 1000), color=color,label=key)
+                ax.text(0.7,0.8-i*0.05, f"AUROC={result['auroc']:.4f}", color=color, transform=ax.transAxes)
             
             #signal region vs. side bands
-            y_pred = np.concatenate((np.array(file["sr/pred"])[:,1], np.array(file["cr/pred"][:,1])),axis=0)
-            y_true = np.concatenate((np.array(file["sr/label"]), np.array(file["cr/label"])),axis=0)
+            y_pred_sr, y_pred_cr = np.array(file["sr/pred"])[:,1], np.array(file["cr/pred"][:,1])
+            y_pred = np.concatenate((y_pred_sr, y_pred_cr), axis=0)
+            y_true_sr, y_true_cr = np.array(file["sr/label"]), np.array(file["cr/label"])
+            y_true = np.concatenate((y_true_sr, y_true_cr),axis=0)
             sr_sb_label = np.concatenate((np.ones(file["sr/pred"].shape[0]), np.zeros(file["cr/pred"].shape[0])), axis=0)
             #we only want background
             is_bg = y_true==0
             tpr, inv_fpr, thres, result = get_roc(sr_sb_label[is_bg], y_pred[is_bg])
             results["sr_vs_sb"][key] = result
-            ax2.plot(tpr, inv_fpr, color=color,label=key)
+            ax2.plot(*utils.misc.thin_plot(tpr, inv_fpr, 1000), color=color,label=key)
             ax2.text(0.7,0.8-i*0.05, f"AUROC={result['auroc']:.4f}", color=color, transform=ax2.transAxes)
             file.close()
+
+            print(f"===== Stats {key} =====")
+            results["test"][key] = utils.evaluation.evaluate_sr_vs_cr(y_pred_cr, y_true_cr, y_pred_sr, y_true_sr, n=1000)
+            
         # random classifier
         np.seterr(**old)
         x = np.linspace(0.001,1,100)
@@ -168,13 +203,11 @@ def plot(outdir:str, logger, training_data_file:str=None, model_name:str="Model"
             a.set_ylabel(r"$1/\epsilon_B$")
             a.grid()
         ax.legend()
-        fig.tight_layout()
         fig.suptitle(f"ROC curve for {model_name}", y=1.02)
+        fig.tight_layout()
         utils.format_floats(results, "{:.4f}".format)
         rocfile = os.path.join(outdir,f"roc.{store_format}")
-        logger.log_figure(fig, rocfile, data_file=", ".join(list(prediction_files.values())), dpi=250, bbox_inches='tight')
-        if(config is not None):
-            steganologger.encode(rocfile, dict(config=config, results=results, extra_info=extra_info), overwrite=True)
+        save_figure(fig, rocfile, log_info=dict(config=config, results=results, extra_info=extra_info))
 
         # ============ PLOT SCORE DISTRIBUTION ============ #
         if(plot_score_hist):
@@ -183,8 +216,9 @@ def plot(outdir:str, logger, training_data_file:str=None, model_name:str="Model"
             colors = utils.colors.ColorIter()
             for i,key in enumerate(prediction_files):
                 file = h5py.File(prediction_files[key], 'r')
-                pred = np.array(file["pred"])
-                y_true = np.array(file["label"])
+                if("s_vs_b" not in file): continue
+                pred = np.array(file["s_vs_b/pred"])
+                y_true = np.array(file["s_vs_b/label"])
                 file.close()
                 is_nan = np.isnan(pred[:,1])
                 pred = pred[~is_nan]
@@ -200,10 +234,7 @@ def plot(outdir:str, logger, training_data_file:str=None, model_name:str="Model"
             ax.legend()
             fig.suptitle(f"Score distribution for {model_name}")
             scorefile = os.path.join(outdir, "score_hist.png")
-            logger.log_figure(fig, scorefile, data_file=", ".join(list(prediction_files.values())), dpi=250)
-            if(config is not None):
-                steganologger.encode(scorefile, dict(config=config, extra_info=extra_info), overwrite=True)
-
+            save_figure(fig, scorefile, log_info=dict(config=config, extra_info=extra_info))
 if __name__=="__main__":
     import jlogger as jl
     import utils
@@ -219,7 +250,7 @@ if __name__=="__main__":
     parser.add_argument("--plot_lr", help="Plot learning rate", action='store_true')
     parser.add_argument("--plot_score", help="Plot score distribution", action='store_true')
     parser.add_argument("--plot_spb", help="Plot number of signal per batch distribution", action='store_true')
-    parser.add_argument("--format", "-f", help="The file format", choices=["pdf", "svg", "png"], default='png')
+    parser.add_argument("--format", "-f", help="The file format", choices=["pdf", "svg", "png", "pgf"], default='png')
     args = vars(parser.parse_args())
 
     outdir = os.path.dirname(__file__)
@@ -227,16 +258,16 @@ if __name__=="__main__":
         outdir = os.path.join(outdir, args["outdir"])
     print(f"Using output dir {outdir:s}")
     config_file = os.path.join(outdir, args["config"]) if args["relative"] else args["config"]
-    config = utils.parse_config(config_file)
+    config = utils.configs.parse_config(config_file)
     print(f"Using config file {config_file:s}")
 
     predict_files = args["prediction"]
     assert len(args["label"])==len(args["prediction"]), "Arguments 'label' and 'prediction' should have same number of values"
     if(args["relative"]):
-        plot(outdir, jl.JLogger(), os.path.join(outdir, args["training"]) if args["training"] else None, model_name=config["MODELNAME"],
+        plot(outdir, os.path.join(outdir, args["training"]) if args["training"] else None, model_name=config["MODELNAME"],
             prediction_files={args["label"][i]: os.path.join(outdir, predict_files[i]) for i in range(min(len(predict_files), len(args["label"])))}, config=config,
             plot_lr=args["plot_lr"], plot_score_hist=args["plot_score"], plot_spb=args["plot_spb"], store_format=args['format'])
     else:
-        plot(outdir, jl.JLogger(), args["training"], model_name=config["MODELNAME"],
+        plot(outdir, args["training"], model_name=config["MODELNAME"],
             prediction_files={args["label"][i]: predict_files[i] for i in range(min(len(predict_files), len(args["label"])))}, config=config,
             plot_lr=args["plot_lr"], plot_score_hist=args["plot_score"], plot_spb=args["plot_spb"], store_format=args['format'])

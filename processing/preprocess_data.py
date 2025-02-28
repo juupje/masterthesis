@@ -4,7 +4,7 @@ import jlogger as jl
 import h5py
 import random
 
-DATA_DIR = os.getenv("DATA_DIR")
+DATA_DIR = "/scratch/work/geuskens/data"
 
 output = DATA_DIR + "/events_anomalydetection_v2_SR.h5"
 N_background = 100_000

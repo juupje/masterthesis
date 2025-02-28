@@ -16,7 +16,7 @@ import re
 import argparse
 import numpy as np
 from models import modelhandler
-import lr_scheduler as lrs
+import callbacks.lr_scheduler as lrs
 
 def setup_logging():
     # --------- LOGGING -------------- 
@@ -128,7 +128,7 @@ def get_test_data():
     return data, labels, idx
 
 def get_callbacks():
-    from SaveModelCallback import SaveModelCallback
+    from callbacks.SaveModelCallback import SaveModelCallback
     checkpoint_name = "model-checkpoint_best.h5"
     config["CHECKPOINT_DIR"] = os.path.join(outdir, config["CHECKPOINT_DIR"])
     if not os.path.isdir(config["CHECKPOINT_DIR"]):
@@ -146,7 +146,7 @@ def get_callbacks():
     else:
         callbacks.append(tf.keras.callbacks.ReduceLROnPlateau(monitor=config["MONITOR"], factor=0.1, patience=config["LR_PATIENCE"]))
     if(config["ES_PATIENCE"] is not None):
-        from earlystopping import EarlyStopping
+        from callbacks.earlystopping import EarlyStopping
         callbacks.append(EarlyStopping(min_epoch=config["ES_MIN_EPOCHS"], monitor=config["MONITOR"], patience=config["ES_PATIENCE"]))
     
     if(config["CHECKPOINT_FREQ"] is not None):

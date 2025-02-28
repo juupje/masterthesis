@@ -1,3 +1,7 @@
+"""
+DEPRICATED! THIS IS ONLY HERE FOR BACKWARD COMPATIBILITY FOR OLD RUNS
+FOR NEW RUNS, USE `steganologger` https://github.com/juupje/steganologger
+"""
 import sqlite3 as sq
 import sys, os
 from datetime import datetime

@@ -5,7 +5,7 @@ import numpy as np
 from sklearn.metrics import mean_squared_error
 import steganologger, utils
 
-def plot(outdir:str, logger, training_data_file:str=None, model_name:str="Model", prediction_files:dict=None,config:dict=None,
+def plot(outdir:str, training_data_file:str=None, model_name:str="Model", prediction_files:dict=None,config:dict=None,
          extra_info:dict=None, plot_lr:bool=False, store_format:str='png'):
     assert store_format in ["png", "pdf", "svg"], "Invalid file format"
     if training_data_file is not None:
@@ -36,7 +36,7 @@ def plot(outdir:str, logger, training_data_file:str=None, model_name:str="Model"
             fig.suptitle(f"Training of {model_name}")
             trainplot = os.path.join(outdir,f"training.{store_format}")
             print("Saving plot: " + trainplot)
-            logger.log_figure(fig, trainplot, dpi=250)
+            fig.savefig(trainplot, dpi=250)
             if(config is not None):
                 steganologger.encode(trainplot, dict(config=config, extra_info=extra_info), overwrite=True)
 
@@ -54,7 +54,7 @@ def plot(outdir:str, logger, training_data_file:str=None, model_name:str="Model"
                 ax.grid()
                 fig.legend()
                 lr_file = os.path.join(outdir, f"learning_rate.{store_format}")
-                logger.log_figure(fig, lr_file, data_file=training_data_file, dpi=250)
+                fig.savefig(lr_file, dpi=250)
             file.close()
 
     # ============ PLOT PREDICTION CURVES ============ #
@@ -113,14 +113,13 @@ def plot(outdir:str, logger, training_data_file:str=None, model_name:str="Model"
 
         ax1.legend()
         fig.suptitle(f"Reconstruction distribution for {model_name}")
-        utils.format_floats(results, "{:.4f}".format)
+        utils.formatting.format_floats(results, "{:.4f}".format)
         rocfile = os.path.join(outdir,f"reco.{store_format}")
-        logger.log_figure(fig, rocfile, data_file=", ".join(list(prediction_files.values())), dpi=250)
+        fig.savefig(rocfile, dpi=250)
         if(config is not None):
             steganologger.encode(rocfile, dict(config=config, results=results, extra_info=extra_info), overwrite=True)
 
 if __name__=="__main__":
-    import jlogger as jl
     import utils
     import argparse
 
@@ -140,16 +139,16 @@ if __name__=="__main__":
         outdir = os.path.join(outdir, args["outdir"])
     print(f"Using output dir {outdir:s}")
     config_file = os.path.join(outdir, args["config"]) if args["relative"] else args["config"]
-    config = utils.parse_config(config_file)
+    config = utils.configs.parse_config(config_file)
     print(f"Using config file {config_file:s}")
 
     predict_files = args["prediction"]
     assert len(args["label"])==len(args["prediction"]), "Arguments 'label' and 'prediction' should have same number of values"
     if(args["relative"]):
-        plot(outdir, jl.JLogger(), os.path.join(outdir, args["training"]) if args["training"] else None, model_name=config["MODELNAME"],
+        plot(outdir, os.path.join(outdir, args["training"]) if args["training"] else None, model_name=config["MODELNAME"],
             prediction_files={args["label"][i]: os.path.join(outdir, predict_files[i]) for i in range(min(len(predict_files), len(args["label"])))}, config=config,
             plot_lr=args["plot_lr"], store_format=args['format'])
     else:
-        plot(outdir, jl.JLogger(), args["training"], model_name=config["MODELNAME"],
+        plot(outdir, args["training"], model_name=config["MODELNAME"],
             prediction_files={args["label"][i]: predict_files[i] for i in range(min(len(predict_files), len(args["label"])))}, config=config,
             plot_lr=args["plot_lr"], store_format=args['format'])

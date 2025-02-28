@@ -28,7 +28,6 @@ File layout:
     - signal: (None) - signal bit (1 for signal, 0 otherwise)        
 """
 
-
 R = 1.0
 beta = 1.0
 

@@ -15,7 +15,21 @@ def restore_order(data, idx):
     return np.concatenate((s_data,b_data),axis=0)
 
 def plot(outdir:str, logger, model_name:str="Model", prediction_files:dict=None,config:dict=None, extra_info:dict=None,
-         plot_score_hist:bool=False, store_format:str='png', save:list=None):
+         plot_score_hist:bool=False, store_format:str='png', save:list=None, logx:bool=False, upload:list=[]):
+    if(store_format == "pgf"):
+        import matplotlib
+        matplotlib.use("pgf")
+        matplotlib.rcParams.update({
+            "pgf.texsystem": "pdflatex",
+            'font.family': 'serif',
+            'font.size' : 11,
+            'text.usetex': True,
+            'pgf.rcfonts': False,
+        })
+    if len(upload)>0:
+        from onedrive import onedrive
+        od_handler = onedrive.OneDriveHandler()
+        upload_fail = False
     if(prediction_files is not None and len(prediction_files.keys())>0):
         old = np.seterr(divide='ignore')
         #plot the ROC curve
@@ -87,7 +101,7 @@ def plot(outdir:str, logger, model_name:str="Model", prediction_files:dict=None,
                 inv_fpr = 1/fpr
                 inv_fpr[np.isinf(inv_fpr)] = np.nan
                 c = utils.colors.change_brightness(color, brightness)
-                ax.plot(tpr, inv_fpr, color=c,label=f"{key} - {name}")
+                ax.plot(*utils.misc.thin_plot(tpr, inv_fpr, 1000), color=c,label=f"{key} - {name}")
                 ax.text(0.4,0.8-count*0.05, f"AUROC={auroc:.4f}", color=c, transform=ax.transAxes)
                 count += 1
 
@@ -133,7 +147,7 @@ def plot(outdir:str, logger, model_name:str="Model", prediction_files:dict=None,
 
             for x in y_preds:
                 fpr, tpr, thres = roc_curve(y_true, x, pos_label=1)
-                ax.plot(tpr, 1/fpr, color=color, alpha=0.3)
+                ax.plot(*utils.misc.thin_plot(tpr, 1/fpr, 1000), color=color, alpha=0.3)
         
         if(save):
             savefile.close()
@@ -144,7 +158,11 @@ def plot(outdir:str, logger, model_name:str="Model", prediction_files:dict=None,
 
         #Make it pretty
         ax.set_yscale('log')
-        ax.set_xlim(0,1)
+        if(logx):
+            ax.set_xscale('log')
+            ax.set_xlim(1e-3,None)
+        else:
+            ax.set_xlim(0,1)
         ax.set_ylim(1,1e5)
         ax.set_xlabel(r"$\epsilon_S$")
         ax.set_ylabel(r"$1/\epsilon_B$")
@@ -156,7 +174,9 @@ def plot(outdir:str, logger, model_name:str="Model", prediction_files:dict=None,
         logger.log_figure(fig, rocfile, data_file=", ".join(list(prediction_files.values())), dpi=250)
         if(config is not None):
             steganologger.encode(rocfile, dict(config=config, results=results, extra_info=extra_info), overwrite=True)
-
+            if("roc" in upload and not upload_fail):
+                resp = od_handler.upload(rocfile, f"R{config['RUN_ID']}_{config['TAG']}_{config['NAME']}-roc-ens.{store_format}", to_path=f"Documenten/thesis/plots/{config['JOBNAME']}")
+                upload_fail = resp.status_code//100!=2
         #Plot the score distribution
         if(plot_score_hist):
             fig, ax = plt.subplots()
@@ -192,7 +212,11 @@ def plot(outdir:str, logger, model_name:str="Model", prediction_files:dict=None,
             logger.log_figure(fig, scorefile, data_file=", ".join(list(prediction_files.values())), dpi=250)
             if(config is not None):
                 steganologger.encode(scorefile, dict(config=config, extra_info=extra_info), overwrite=True)
-
+                if("score" in upload and not upload_fail):
+                    resp = od_handler.upload(scorefile, f"R{config['RUN_ID']}_{config['TAG']}_{config['NAME']}-score-ens.{store_format}", to_path=f"Documenten/thesis/plots/{config['JOBNAME']}")
+                    upload_fail = resp.status_code//100!=2
+    if(len(upload)>0 and upload_fail):
+        print("Upload failed")
 if __name__=="__main__":
     import jlogger as jl
     import utils
@@ -204,8 +228,10 @@ if __name__=="__main__":
     parser.add_argument("--prediction", "-p", help="Path of the prediction files", nargs='*', default=['pred_final.h5', 'pred_best.h5'], type=str)
     parser.add_argument("--label", "-l", help="Labels of the prediction files", nargs='*', default=['final','best'], type=str)
     parser.add_argument("--plot_score", help="Plot score distribution", action='store_true')
+    parser.add_argument("--logx", help="Use a logarithmic x-axis", action='store_true')
     parser.add_argument("--save", help="Save roc curves", nargs='*')
-    parser.add_argument("--format", "-f", help="The file format", choices=["pdf", "svg", "png"], default='png')
+    parser.add_argument("--format", "-f", help="The file format", choices=["pdf", "svg", "png", "pgf"], default='png')
+    parser.add_argument("--upload", "-u", help="Upload generated plots", nargs='*', type=str)
     args = vars(parser.parse_args())
 
     outdir = os.path.dirname(__file__)
@@ -220,4 +246,4 @@ if __name__=="__main__":
     assert len(args["label"])==len(args["prediction"]), "Arguments 'label' and 'prediction' should have same number of values"
     plot(outdir, jl.JLogger(), model_name=config["MODELNAME"],
         prediction_files={args["label"][i]: os.path.join(outdir, "*", predict_files[i]) for i in range(min(len(predict_files), len(args["label"])))}, config=config,
-        plot_score_hist=args["plot_score"], store_format=args['format'], save=args["save"])
+        plot_score_hist=args["plot_score"], store_format=args['format'], save=args["save"], logx=args['logx'], upload=args['upload'] or [])

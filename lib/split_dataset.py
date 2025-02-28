@@ -1,3 +1,8 @@
+"""
+Utility to split a dataset
+
+author: Joep Geuskens
+"""
 import argparse
 import h5py
 import re, os

@@ -20,7 +20,7 @@ def create_grid(name_format, values, **kwargs):
     return configs 
 
 WORK_DIR = f"{HOME}/thesis"
-DATA_DIR = ""
+DATA_DIR = "/hpcwork/rwth0934/cwola_project"
 OUTPUT_DIR = f"{WORK_DIR}/outputs/{JOBNAME}"
 RUN_ID_FILE = f"{WORK_DIR}/run_id.json"
 CHECKPOINT_DIR = "model-checkpoints"

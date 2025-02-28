@@ -42,6 +42,8 @@ def oversample(dataset_size:int, num_samples:int, mode:str='choice', shuffle:boo
         if(mode=='repeat'):
             t += [rng.choice(dataset_size, num_samples-dataset_size*repeats, replace=False)]
         idx = np.concatenate(t,axis=0)
+    else:
+        raise ValueError(f"Unknown oversample strategy '{mode}'")
     if(shuffle):
         rng.shuffle(idx)
     return idx

@@ -4,10 +4,26 @@ import os
 import numpy as np
 from sklearn.metrics import roc_curve, roc_auc_score, log_loss
 import steganologger, utils
+from glob import glob
+import re
 
 def plot(outdir:str, logger, training_data_file:str=None, model_name:str="Model", prediction_files:dict=None,config:dict=None,
-         extra_info:dict=None, plot_lr:bool=False, plot_score_hist:bool=False, plot_spb:bool=False, store_format:str='png'):
-    assert store_format in ["png", "pdf", "svg"], "Invalid file format"
+         extra_info:dict=None, plot_lr:bool=False, plot_score_hist:bool=False, plot_spb:bool=False, store_format:str='png', upload:list=[]):
+    assert store_format in ["png", "pdf", "svg", "pgf"], "Invalid file format"
+    if(store_format == "pgf"):
+        import matplotlib
+        matplotlib.use("pgf")
+        matplotlib.rcParams.update({
+            "pgf.texsystem": "pdflatex",
+            'font.family': 'serif',
+            'font.size' : 11,
+            'text.usetex': True,
+            'pgf.rcfonts': False,
+        })
+    if len(upload)>0:
+        from onedrive import onedrive
+        od_handler = onedrive.OneDriveHandler()
+        upload_fail = False
     if training_data_file is not None:
         if not os.path.exists(training_data_file):
             print("Training file doesn't exist. Skipping...")
@@ -27,8 +43,6 @@ def plot(outdir:str, logger, training_data_file:str=None, model_name:str="Model"
             #Normal loss and accuracy
             ax_t.plot(x,loss, color='C0',label="Training loss")
             ax_v.plot(x,val_loss, color='C0', label='Validation loss')
-            ratio = (config["N_DATA_BACKGROUND_VAL"]+config["N_DATA_SIGNAL_VAL"])/config["N_SIMULATED_VAL"]
-            ax_v.plot(x,(1*np.array(file["val_background_region_loss"])+ratio*np.array(file["val_signal_region_loss"]))/(1+ratio), color='C0', linestyle='--')
             ax_t2, ax_v2 = ax_t.twinx(), ax_v.twinx()
             ax_t2.plot(x,acc, color='C1', label="Training accuracy")
             ax_v2.plot(x,val_acc, color='C1', label='Validation accuracy')
@@ -55,13 +69,16 @@ def plot(outdir:str, logger, training_data_file:str=None, model_name:str="Model"
                 val["axis"].set_title(val["name"])
                 print(val["name"], file[key][3])
 
-            fig.tight_layout()
             fig.suptitle(f"Training of {model_name}")
+            fig.tight_layout()
             trainplot = os.path.join(outdir,f"training.{store_format}")
             print("Saving plot: " + trainplot)
             logger.log_figure(fig, trainplot, dpi=250)
             if(config is not None):
                 steganologger.encode(trainplot, dict(config=config, extra_info=extra_info), overwrite=True)
+                if("training" in upload and not upload_fail):
+                    resp = od_handler.upload(trainplot, f"R{config['RUN_ID']}_{config['TAG']}_{config['NAME']}-training.{store_format}", to_path=f"Documenten/thesis/plots/{config['JOBNAME']}")
+                    upload_fail = resp.status_code//100!=2
 
             # ============ PLOT LEARNING RATE SCHEDULE ============ #
             if(plot_lr):
@@ -70,7 +87,7 @@ def plot(outdir:str, logger, training_data_file:str=None, model_name:str="Model"
                 ax.plot(np.arange(len(lr))+1, lr, label='lr')
                 lr_batch = np.array(file["learning_rate"])
                 lr_batch = lr_batch.flatten()
-                ax.plot(np.linspace(0, len(lr)+1, lr_batch.shape[0], endpoint=False), lr_batch, label='per batch')
+                ax.plot(np.linspace(0, len(lr), lr_batch.shape[0], endpoint=False), lr_batch, label='per batch')
                 ax.set_xlabel("epoch")
                 ax.set_ylabel("learning rate")
                 ax.set_title(f"Learning rate of {model_name:s}")
@@ -78,6 +95,9 @@ def plot(outdir:str, logger, training_data_file:str=None, model_name:str="Model"
                 fig.legend()
                 lr_file = os.path.join(outdir, f"learning_rate.{store_format}")
                 logger.log_figure(fig, lr_file, data_file=training_data_file, dpi=250)
+                if("lr" in upload and not upload_fail):
+                    resp = od_handler.upload(lr_file, f"R{config['RUN_ID']}_{config['TAG']}_{config['NAME']}-lr.{store_format}", to_path=f"Documenten/thesis/plots/{config['JOBNAME']}")
+                    upload_fail = resp.status_code//100!=2
 
             # ============ PLOT SIGNAL PER BATCH DISTRIBUTION ============ #
             if(plot_spb):
@@ -131,10 +151,10 @@ def plot(outdir:str, logger, training_data_file:str=None, model_name:str="Model"
             #calculate the loss!
             results[key]["loss"] = log_loss(y_true, y_pred)
 
-            color = next(ax._get_lines.prop_cycler)["color"]
+            color = next(coloriter)
             inv_fpr = 1/fpr
             inv_fpr[np.isinf(inv_fpr)] = np.nan
-            ax.plot(tpr, inv_fpr, color=color,label=key)
+            ax.plot(*utils.misc.thin_plot(tpr, inv_fpr, 1000), color=color,label=key)
             ax.text(0.7,0.8-i*0.05, f"AUROC={auroc:.4f}", color=color, transform=ax.transAxes)
         # random classifier
         np.seterr(**old)
@@ -155,7 +175,9 @@ def plot(outdir:str, logger, training_data_file:str=None, model_name:str="Model"
         logger.log_figure(fig, rocfile, data_file=", ".join(list(prediction_files.values())), dpi=250)
         if(config is not None):
             steganologger.encode(rocfile, dict(config=config, results=results, extra_info=extra_info), overwrite=True)
-
+            if("roc" in upload and not upload_fail):
+                resp = od_handler.upload(rocfile, f"R{config['RUN_ID']}_{config['TAG']}_{config['NAME']}-roc.{store_format}", to_path=f"Documenten/thesis/plots/{config['JOBNAME']}")
+                upload_fail = resp.status_code//100!=2
         # ============ PLOT SCORE DISTRIBUTION ============ #
         if(plot_score_hist):
             fig, ax = plt.subplots()
@@ -183,7 +205,11 @@ def plot(outdir:str, logger, training_data_file:str=None, model_name:str="Model"
             logger.log_figure(fig, scorefile, data_file=", ".join(list(prediction_files.values())), dpi=250)
             if(config is not None):
                 steganologger.encode(scorefile, dict(config=config, extra_info=extra_info), overwrite=True)
-
+                if("score" in upload and not upload_fail):
+                    resp = od_handler.upload(scorefile, f"R{config['RUN_ID']}_{config['TAG']}_{config['NAME']}-score.{store_format}", to_path=f"Documenten/thesis/plots/{config['JOBNAME']}")
+                    upload_fail = resp.status_code//100!=2
+    if(len(upload)>0 and upload_fail):
+        print("Upload failed")
 if __name__=="__main__":
     import jlogger as jl
     import utils
@@ -192,14 +218,15 @@ if __name__=="__main__":
     parser = argparse.ArgumentParser("Plotter of model training output")
     parser.add_argument("--config", "-c", help="Path of the configuration file (.json or .py)", default='config.json', type=str)
     parser.add_argument("--outdir", "-o", help="Path of the output directory", type=str)
-    parser.add_argument("--prediction", "-p", help="Path of the prediction file", nargs='*', default=['pred_final.h5', 'pred_best.h5'], type=str)
+    parser.add_argument("--prediction", "-p", help="Path of the prediction file", nargs='*', type=str)
     parser.add_argument("--label", "-l", help="Labels of the prediction files", nargs='*', default=['final','best'], type=str)
     parser.add_argument("--training", "-t", help="Path of the training log", default='training_stats.h5', type=str)
     parser.add_argument("--relative", "-r", help="Treat all file paths as relative to 'outdir'", action='store_true')
     parser.add_argument("--plot_lr", help="Plot learning rate", action='store_true')
     parser.add_argument("--plot_score", help="Plot score distribution", action='store_true')
     parser.add_argument("--plot_spb", help="Plot number of signal per batch distribution", action='store_true')
-    parser.add_argument("--format", "-f", help="The file format", choices=["pdf", "svg", "png"], default='png')
+    parser.add_argument("--format", "-f", help="The file format", choices=["pdf", "svg", "png", "pgf"], default='png')
+    parser.add_argument("--upload", "-u", help="Upload generated plots", nargs='*', type=str)
     args = vars(parser.parse_args())
 
     outdir = os.path.dirname(__file__)
@@ -210,13 +237,18 @@ if __name__=="__main__":
     config = utils.parse_config(config_file)
     print(f"Using config file {config_file:s}")
 
-    predict_files = args["prediction"]
-    assert len(args["label"])==len(args["prediction"]), "Arguments 'label' and 'prediction' should have same number of values"
+    if args["prediction"] is None:
+        predict_files = [f"pred_{label}" for label in args["label"]]
+        if not args["relative"]: #add outdir anyway
+            predict_files = [os.path.join(outdir, f) for f in predict_files]
+    else:
+        predict_files = args["prediction"]
+        assert len(args["label"])==len(args["prediction"]), "Arguments 'label' and 'prediction' should have same number of values"
     if(args["relative"]):
         plot(outdir, jl.JLogger(), os.path.join(outdir, args["training"]) if args["training"] else None, model_name=config["MODELNAME"],
             prediction_files={args["label"][i]: os.path.join(outdir, predict_files[i]) for i in range(min(len(predict_files), len(args["label"])))}, config=config,
-            plot_lr=args["plot_lr"], plot_score_hist=args["plot_score"], plot_spb=args["plot_spb"], store_format=args['format'])
+            plot_lr=args["plot_lr"], plot_score_hist=args["plot_score"], plot_spb=args["plot_spb"], store_format=args['format'], upload=args['upload'] or [])
     else:
         plot(outdir, jl.JLogger(), args["training"], model_name=config["MODELNAME"],
             prediction_files={args["label"][i]: predict_files[i] for i in range(min(len(predict_files), len(args["label"])))}, config=config,
-            plot_lr=args["plot_lr"], plot_score_hist=args["plot_score"], plot_spb=args["plot_spb"], store_format=args['format'])
+            plot_lr=args["plot_lr"], plot_score_hist=args["plot_score"], plot_spb=args["plot_spb"], store_format=args['format'], upload=args['upload'] or [])

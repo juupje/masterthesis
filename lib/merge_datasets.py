@@ -1,3 +1,9 @@
+"""
+Utility to merge datasets into one.
+
+author: Joep Geuskens
+"""
+
 import argparse
 import h5py
 import re, os

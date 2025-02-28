@@ -56,3 +56,15 @@ def restore_ordering(pred, labels, data_idx):
     order = np.argsort(data_idx[~is_bg])
     pred_sn, labels_sn = pred[~is_bg][order], labels[~is_bg][order]
     return np.concatenate((pred_bg, pred_sn)), np.concatenate((labels_bg, labels_sn))
+
+def thin_plot(x,y,samplings):
+    min_delta = (np.max(x)-np.min(x))/samplings
+    #assume x is sorted
+    idx = np.ones(x.shape[0], dtype=bool)
+    last_val = x[0]
+    for i in range(1,x.shape[0]):
+        if(abs(x[i]-last_val)<min_delta):
+            idx[i] = 0 #don't use this datapoint
+        else:
+            last_val = x[i]
+    return x[idx], y[idx]

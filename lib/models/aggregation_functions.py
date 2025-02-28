@@ -1,5 +1,6 @@
-import tensorflow as tf
-from tensorflow import keras
+# This file contains the aggregation functions used in PELICAN
+import keras
+from keras import ops as ko
 
 def get(name:str):
     if(name == "mean"):
@@ -13,26 +14,26 @@ def get(name:str):
     elif(name == "sum"):
         return masked_sum
 
-def masked_mean(x:tf.Tensor,nobj:tf.Tensor, axis:int|tuple=None, keepdims:bool=False):
-    x = tf.reduce_sum(x, axis=axis, keepdims=keepdims)
+def masked_mean(x:keras.KerasTensor,nobj:keras.KerasTensor, axis:int|tuple=None, keepdims:bool=False):
+    x = ko.sum(x, axis=axis, keepdims=keepdims)
     if type(axis)!=int:
         nobj = nobj**(len(axis))
-    nobj = tf.reshape(nobj, ([-1]+[1,]*(len(x.shape)-1)))
+    nobj = ko.reshape(nobj, ([-1]+[1,]*(len(x.shape)-1)))
     return x/nobj
 
-def masked_amax(x:tf.Tensor,nobj:tf.Tensor, axis:int|tuple=None, keepdims:bool=False):
-    x = tf.reduce_max(x,axis=axis,keepdims=keepdims)
-    return x - tf.math.log(nobj).reshape([-1],[1,]*(len(x.shape)-1))
+def masked_amax(x:keras.KerasTensor,nobj:keras.KerasTensor, axis:int|tuple=None, keepdims:bool=False):
+    x = ko.max(x,axis=axis,keepdims=keepdims)
+    return x - ko.log(nobj).reshape([-1],[1,]*(len(x.shape)-1))
 
-def masked_amin(x:tf.Tensor,nobj:tf.Tensor, axis:int|tuple=None, keepdims:bool=False):
-    x = tf.reduce_min(x,axis=axis,keepdims=keepdims)
-    return x + tf.math.log(nobj).reshape([-1],[1,]*(len(x.shape)-1))
+def masked_amin(x:keras.KerasTensor,nobj:keras.KerasTensor, axis:int|tuple=None, keepdims:bool=False):
+    x = ko.min(x,axis=axis,keepdims=keepdims)
+    return x + ko.log(nobj).reshape([-1],[1,]*(len(x.shape)-1))
 
-def masked_var(x:tf.Tensor,nobj:tf.Tensor, axis:int|tuple=None, keepdims:bool=False):
+def masked_var(x:keras.KerasTensor,nobj:keras.KerasTensor, axis:int|tuple=None, keepdims:bool=False):
     return masked_mean((x-masked_mean(x, nobj, axis, keepdims=True))**2, nobj, axis, keepdims)
     
-def masked_sum(x:tf.Tensor,nobj:tf.Tensor, axis:int|tuple=None, keepdims:bool=False):
+def masked_sum(x:keras.KerasTensor,nobj:keras.KerasTensor, axis:int|tuple=None, keepdims:bool=False):
     N = x.shape[-1]
     if type(axis)!=int:
         N = N**len(axis)
-    return tf.reduce_sum(x, axis=axis, keepdims=keepdims)/N
+    return ko.sum(x, axis=axis, keepdims=keepdims)/N
