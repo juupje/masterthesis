@@ -227,7 +227,7 @@ if __name__=="__main__":
         
         config = configs.parse_config(os.path.join(args["config"]), expand=False)
         print(config)
-        change_seed = config["CHANGE_SEED"]
+        change_seed = config.get("CHANGE_SEED", True)
         
         #confirm if the user agrees with the grid
         use_grid = ("GRID" in config and not args["no_grid"])
