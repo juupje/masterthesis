@@ -88,7 +88,9 @@ if __name__ == "__main__":
     result = None
     if args["nprocs"] > 1:
         print(f"Processing file {args['input']} of shape {size} using {args['nprocs']} processes")
-        results = process_map(lambda chunk: process_chunk(chunk, args["input"], signal=args["signal"]),
+        def func(chunk):
+            return process_chunk(chunk, args["input"], signal=args["signal"])
+        results = process_map(func,
                 utils.calc.create_chunks(chunksize=args["chunksize"], start=start, total_size=events),
                 max_workers=args["nprocs"])
         result = np.concatenate(results, axis=0)
