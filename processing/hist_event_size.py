@@ -56,11 +56,11 @@ for key in files:
             df = pd.read_hdf(files[key],start=chunk[0], stop=chunk[1])
             i = 0
             for _, event in df.iterrows():
-                    n_particles[i] = utils.get_nparticles(event)
+                    n_particles[i] = utils.calc.get_nparticles(event)
                     i += 1
             return n_particles
 
-        result = process_map(process_chunk, utils.create_chunks(chunksize=2048, total_size=min(maxEvents, size[0])), max_workers=NPROC)
+        result = process_map(process_chunk, utils.calc.create_chunks(chunksize=2048, total_size=min(maxEvents, size[0])), max_workers=NPROC)
         n_particles = np.concatenate(result)
 
         logger.store_log_data(dict(n_particles=n_particles), group_name=key, data_used=files[key],
@@ -75,7 +75,7 @@ for key in files:
 
         print(f"Plotting {key}")
         if bins is None:
-            bins = utils.calculate_bins(n_particles, 100)
+            bins = utils.calc.calculate_bins(n_particles, 100)
         color = next(plt.gca()._get_lines.prop_cycler)["color"]
         n, bins, _ = plt.hist(n_particles, bins=bins, density=True, color=color, alpha=0.3, label=key, edgecolor=color)
 

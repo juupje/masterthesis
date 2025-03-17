@@ -40,7 +40,7 @@ def process_chunk(chunk):
         signal_bit = np.zeros(df.shape[0])
     particles = df.to_numpy()
     #get top 100 particles:
-    topk, idx = utils.get_topK(particles, N_particles, 3, 0)
+    topk, idx = utils.calc.get_topK(particles, N_particles, 3, 0)
 
     #print(idx.shape, df.shape)
     jet_def = fastjet.JetDefinition(fastjet.antikt_algorithm, R)
@@ -48,7 +48,7 @@ def process_chunk(chunk):
     i = 0
     for _, event in df.iterrows():
         pjs = []
-        for j in range(utils.get_nparticles(event)):
+        for j in range(utils.calc.get_nparticles(event)):
             pj = fastjet.PseudoJet()
             pj.reset_PtYPhiM(event[j*3],event[j*3+1],event[j*3+2], 0.)
             pj.set_user_index(j)
@@ -111,8 +111,8 @@ for key in files:
 
     print(f"Processing file {files[key]} of shape {size}")
 
-    bg_chunks = utils.create_chunks(chunksize=1024, start=0, total_size=N_BACKGROUND)
-    sn_chunks = utils.create_chunks(chunksize=1024, start=BS_SPLIT, total_size=N_SIGNAL)
+    bg_chunks = utils.calc.create_chunks(chunksize=1024, start=0, total_size=N_BACKGROUND)
+    sn_chunks = utils.calc.create_chunks(chunksize=1024, start=BS_SPLIT, total_size=N_SIGNAL)
     chunks = bg_chunks
     chunks.extend(sn_chunks)
     jobs = []
